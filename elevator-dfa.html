@@ -1,0 +1,1549 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>⚡ Anti-Gravity Elevator DFA Simulator</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap"
+        rel="stylesheet" />
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg: #06000f;
+            --nebula: #12103a;
+            --up: #00ff88;
+            --down: #00ccff;
+            --stop: #ffaa00;
+            --metal: #aaaaaa;
+            --err: #ff2255;
+            --particles: #ccccff;
+            --text: #e8e8ff;
+            --panel-bg: rgba(14, 10, 40, 0.92);
+            --border: rgba(170, 170, 170, 0.18);
+        }
+
+        html,
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        /* ── Animated star field ── */
+        #stars {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            background:
+                radial-gradient(1px 1px at 8% 12%, #fff 0%, transparent 100%),
+                radial-gradient(1px 1px at 22% 68%, #fff 0%, transparent 100%),
+                radial-gradient(1px 1px at 37% 5%, #fff 0%, transparent 100%),
+                radial-gradient(1px 1px at 51% 42%, #fff 0%, transparent 100%),
+                radial-gradient(1px 1px at 63% 78%, #fff 0%, transparent 100%),
+                radial-gradient(1px 1px at 78% 23%, #fff 0%, transparent 100%),
+                radial-gradient(1px 1px at 89% 55%, #fff 0%, transparent 100%),
+                radial-gradient(1px 1px at 14% 90%, #fff 0%, transparent 100%),
+                radial-gradient(1px 1px at 44% 33%, #fff 0%, transparent 100%),
+                radial-gradient(1px 1px at 72% 8%, #fff 0%, transparent 100%),
+                radial-gradient(1px 1px at 95% 72%, #fff 0%, transparent 100%),
+                radial-gradient(1px 1px at 5% 50%, #fff 0%, transparent 100%),
+                radial-gradient(1px 1px at 30% 18%, #fff 0%, transparent 100%),
+                radial-gradient(1px 1px at 58% 85%, #fff 0%, transparent 100%),
+                radial-gradient(1px 1px at 83% 40%, #fff 0%, transparent 100%),
+                radial-gradient(1px 1px at 17% 62%, #ccf 0%, transparent 100%),
+                radial-gradient(1px 1px at 66% 48%, #ccf 0%, transparent 100%),
+                radial-gradient(1px 1px at 47% 95%, #ccf 0%, transparent 100%),
+                radial-gradient(2px 2px at 28% 30%, rgba(204, 204, 255, 0.4) 0%, transparent 100%),
+                radial-gradient(2px 2px at 75% 60%, rgba(204, 204, 255, 0.4) 0%, transparent 100%);
+            animation: twinkle 8s ease-in-out infinite alternate;
+        }
+
+        @keyframes twinkle {
+            0% {
+                opacity: 0.5;
+            }
+
+            50% {
+                opacity: 0.8;
+            }
+
+            100% {
+                opacity: 0.5;
+            }
+        }
+
+        /* ── Scanlines ── */
+        #scanlines {
+            position: fixed;
+            inset: 0;
+            z-index: 1;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.06) 2px, rgba(0, 0, 0, 0.06) 4px);
+            pointer-events: none;
+        }
+
+        /* ── App shell: full viewport grid ── */
+        #app {
+            position: relative;
+            z-index: 2;
+            width: 100vw;
+            height: 100vh;
+            display: grid;
+            grid-template-rows: 52px 1fr 38px;
+            grid-template-columns: 260px 1fr 240px;
+            grid-template-areas:
+                "hdr hdr hdr"
+                "left center right"
+                "foot foot foot";
+            gap: 0;
+        }
+
+        /* ── Header ── */
+        #header {
+            grid-area: hdr;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            background: rgba(10, 8, 30, 0.95);
+            border-bottom: 1px solid var(--border);
+            gap: 12px;
+        }
+
+        .hdr-title {
+            font-family: 'Orbitron', monospace;
+            font-size: clamp(0.6rem, 1.2vw, 0.9rem);
+            font-weight: 900;
+            color: var(--particles);
+            text-shadow: 0 0 16px var(--particles);
+            letter-spacing: 2px;
+            flex: 1;
+        }
+
+        .hdr-right {
+            font-size: 0.65rem;
+            color: var(--stop);
+            text-shadow: 0 0 8px var(--stop);
+            letter-spacing: 2px;
+            white-space: nowrap;
+        }
+
+        /* ── Column helper ── */
+        .col {
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        #colLeft {
+            grid-area: left;
+        }
+
+        #colCenter {
+            grid-area: center;
+            border-right: 1px solid var(--border);
+        }
+
+        #colRight {
+            grid-area: right;
+            border-right: none;
+        }
+
+        /* ── Panel ── */
+        .panel {
+            border-bottom: 1px solid var(--border);
+            background: var(--panel-bg);
+            padding: 10px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .panel.grow {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .panel-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 0.6rem;
+            color: var(--metal);
+            letter-spacing: 3px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 6px;
+            flex-shrink: 0;
+        }
+
+        /* ── State Display ── */
+        .state-box {
+            text-align: center;
+            padding: 10px 6px;
+            border: 1px solid rgba(204, 204, 255, 0.2);
+            background: rgba(0, 0, 0, 0.4);
+        }
+
+        .state-lbl {
+            font-size: 0.6rem;
+            color: var(--metal);
+            letter-spacing: 3px;
+        }
+
+        #stateValue {
+            font-family: 'Orbitron', monospace;
+            font-size: 2.2rem;
+            font-weight: 900;
+            color: var(--up);
+            text-shadow: 0 0 14px var(--up);
+            transition: all 0.3s ease;
+            line-height: 1;
+        }
+
+        #stateValue.err {
+            color: var(--err);
+            text-shadow: 0 0 20px var(--err);
+            animation: blink-err 0.5s infinite alternate;
+        }
+
+        #stateSub {
+            font-size: 0.65rem;
+            color: var(--particles);
+            margin-top: 4px;
+        }
+
+        /* ── Command Buttons ── */
+        .cmd-btn {
+            width: 100%;
+            padding: 10px 0;
+            background: transparent;
+            border: 2px solid;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.85rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            letter-spacing: 1px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cmd-btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: currentColor;
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+
+        .cmd-btn:hover:not(:disabled)::before {
+            opacity: 0.14;
+        }
+
+        .cmd-btn:active:not(:disabled) {
+            transform: scale(0.96);
+        }
+
+        .cmd-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .btn-up {
+            border-color: var(--up);
+            color: var(--up);
+        }
+
+        .btn-up:hover:not(:disabled) {
+            box-shadow: 0 0 18px var(--up);
+        }
+
+        .btn-down {
+            border-color: var(--down);
+            color: var(--down);
+        }
+
+        .btn-down:hover:not(:disabled) {
+            box-shadow: 0 0 18px var(--down);
+        }
+
+        .btn-stop {
+            border-color: var(--stop);
+            color: var(--stop);
+        }
+
+        .btn-stop:hover:not(:disabled) {
+            box-shadow: 0 0 18px var(--stop);
+        }
+
+        .btn-reset {
+            border-color: var(--err);
+            color: #fff;
+            background: rgba(255, 34, 85, 0.2);
+        }
+
+        .btn-reset:hover {
+            box-shadow: 0 0 18px var(--err);
+            background: rgba(255, 34, 85, 0.35);
+        }
+
+        /* ── Transition Table ── */
+        .ttable {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.7rem;
+        }
+
+        .ttable th {
+            background: rgba(204, 204, 255, 0.07);
+            color: var(--particles);
+            padding: 5px 6px;
+            border: 1px solid var(--border);
+            font-family: 'Orbitron', monospace;
+            font-size: 0.58rem;
+            letter-spacing: 1px;
+        }
+
+        .ttable td {
+            padding: 5px 6px;
+            border: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .ttable tr.active-row td {
+            background: rgba(0, 255, 136, 0.12);
+            color: var(--up);
+        }
+
+        .ttable td.err-cell {
+            color: var(--err);
+        }
+
+        .ttable td.cur-st {
+            font-weight: bold;
+            color: var(--particles);
+        }
+
+        /* ── CENTER: Shaft ── */
+        #shaftPanel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+            background: radial-gradient(ellipse at 50% 30%, rgba(26, 21, 64, 0.7) 0%, transparent 70%);
+        }
+
+        #shaftView {
+            flex: 1;
+            display: flex;
+            align-items: stretch;
+            justify-content: center;
+            padding: 10px 0;
+            overflow: hidden;
+        }
+
+        .shaft {
+            display: flex;
+            flex-direction: column;
+            border: 2px solid rgba(170, 170, 170, 0.4);
+            width: clamp(200px, 28vw, 320px);
+            position: relative;
+        }
+
+        .shaft-boundary {
+            text-align: center;
+            padding: 7px 0;
+            font-size: 0.62rem;
+            color: var(--err);
+            text-shadow: 0 0 8px var(--err);
+            background: rgba(255, 34, 85, 0.07);
+            letter-spacing: 2px;
+            flex-shrink: 0;
+        }
+
+        .floor {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 12px;
+            border-top: 1px solid rgba(170, 170, 170, 0.12);
+            transition: background 0.3s ease;
+            position: relative;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .floor.active {
+            background: rgba(0, 255, 136, 0.06);
+            border-left: 3px solid var(--up);
+        }
+
+        .floor-lbl {
+            font-size: 0.65rem;
+            color: var(--metal);
+            line-height: 1.4;
+            min-width: 0;
+        }
+
+        .floor.active .floor-lbl {
+            color: var(--up);
+        }
+
+        .floor-orbit {
+            font-size: 0.55rem;
+            color: var(--particles);
+            display: block;
+        }
+
+        .floor-rings {
+            font-size: 0.65rem;
+            color: rgba(170, 170, 170, 0.3);
+        }
+
+        .floor.active .floor-rings {
+            display: none;
+        }
+
+        /* ── Capsule (Lift Car) ── */
+        .capsule {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            animation: pulse-car 1.8s infinite;
+        }
+
+        .floor.active .capsule {
+            display: flex;
+        }
+
+        /* The stylized lift car SVG-like structure */
+        .lift-car {
+            width: 60px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0;
+            border: 2px solid var(--up);
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.45), inset 0 0 6px rgba(0, 255, 136, 0.08);
+            background: rgba(0, 255, 136, 0.05);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .lift-roof {
+            width: 100%;
+            height: 6px;
+            background: rgba(0, 255, 136, 0.35);
+            border-bottom: 1px solid var(--up);
+        }
+
+        .lift-windows {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            padding: 4px 6px;
+            gap: 4px;
+        }
+
+        .lift-win {
+            flex: 1;
+            height: 10px;
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid rgba(0, 255, 136, 0.5);
+            animation: float-p 1.4s infinite alternate;
+        }
+
+        .lift-doors {
+            display: flex;
+            width: 100%;
+            border-top: 1px solid rgba(0, 255, 136, 0.4);
+        }
+
+        .lift-door {
+            flex: 1;
+            height: 14px;
+            background: rgba(0, 255, 136, 0.07);
+            border-right: 1px solid rgba(0, 255, 136, 0.35);
+        }
+
+        .lift-door:last-child {
+            border-right: none;
+            border-left: 1px dotted rgba(0, 255, 136, 0.3);
+        }
+
+        .lift-floornum {
+            font-family: 'Orbitron', monospace;
+            font-size: 0.72rem;
+            font-weight: 900;
+            color: var(--up);
+            text-align: center;
+            text-shadow: 0 0 8px var(--up);
+            padding: 1px 0 2px;
+            border-top: 1px solid rgba(0, 255, 136, 0.3);
+            border-bottom: 1px solid rgba(0, 255, 136, 0.3);
+            width: 100%;
+            background: rgba(0, 255, 136, 0.06);
+            letter-spacing: 2px;
+        }
+
+        .lift-base {
+            width: 100%;
+            height: 5px;
+            background: rgba(0, 255, 136, 0.25);
+            border-top: 1px solid var(--up);
+        }
+
+        .cap-status {
+            font-size: 0.5rem;
+            color: var(--up);
+            margin-top: 3px;
+            letter-spacing: 1px;
+            opacity: 0.85;
+            text-shadow: 0 0 4px var(--up);
+        }
+
+        /* ── Breach overlay ── */
+        #breachOverlay {
+            display: none;
+            position: absolute;
+            inset: 0;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            background: rgba(6, 0, 15, 0.92);
+            animation: blink-err 0.9s infinite alternate;
+        }
+
+        #breachOverlay.active {
+            display: flex;
+        }
+
+        .breach-box {
+            border: 2px solid var(--err);
+            padding: 24px 32px;
+            color: var(--err);
+            text-align: center;
+            text-shadow: 0 0 12px var(--err);
+            background: rgba(255, 34, 85, 0.06);
+            width: 80%;
+            max-width: 400px;
+        }
+
+        .breach-title {
+            font-family: 'Orbitron', monospace;
+            font-size: 1.1rem;
+            font-weight: 900;
+            letter-spacing: 2px;
+        }
+
+        .breach-sub {
+            font-size: 0.75rem;
+            margin-top: 6px;
+            color: rgba(255, 80, 100, 0.75);
+        }
+
+        #gaugeDisplay {
+            font-size: 1.2rem;
+            letter-spacing: 3px;
+            margin-top: 12px;
+        }
+
+        #breachMsg {
+            font-size: 0.72rem;
+            margin-top: 12px;
+            color: var(--err);
+        }
+
+        /* ── Path Log ── */
+        #pathLog {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 4px;
+            overflow-y: auto;
+            padding: 6px;
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid var(--border);
+            font-size: 0.72rem;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .path-step {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .path-arrow {
+            color: var(--metal);
+            font-size: 0.65rem;
+        }
+
+        .path-inp {
+            font-size: 0.6rem;
+        }
+
+        .path-ok {
+            color: var(--up);
+            border: 1px solid var(--up);
+            padding: 1px 6px;
+        }
+
+        .path-err {
+            color: var(--err);
+            border: 1px solid var(--err);
+            padding: 1px 6px;
+            animation: blink-err 0.5s infinite alternate;
+        }
+
+        /* ── Verdict ── */
+        #verdict {
+            text-align: center;
+            padding: 8px;
+            font-family: 'Orbitron', monospace;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            border: 1px solid;
+            flex-shrink: 0;
+            transition: all 0.3s ease;
+        }
+
+        #verdict.accept {
+            border-color: var(--up);
+            color: var(--up);
+            text-shadow: 0 0 10px var(--up);
+            background: rgba(0, 255, 136, 0.05);
+        }
+
+        #verdict.reject {
+            border-color: var(--err);
+            color: var(--err);
+            text-shadow: 0 0 10px var(--err);
+            background: rgba(255, 34, 85, 0.05);
+            animation: blink-err 0.8s infinite alternate;
+        }
+
+        /* ── SVG Diagram ── */
+        #svgWrap {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            align-items: stretch;
+        }
+
+        #svgWrap svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* ── Formal Spec ── */
+        .spec-line {
+            font-size: 0.68rem;
+            color: var(--metal);
+            line-height: 2;
+        }
+
+        .spec-key {
+            color: var(--particles);
+        }
+
+        /* ── PRD footer ── */
+        #footer {
+            grid-area: foot;
+            border-top: 1px solid var(--border);
+            background: rgba(10, 8, 30, 0.95);
+            display: flex;
+            align-items: center;
+        }
+
+        #prdToggle {
+            width: 100%;
+            height: 100%;
+            padding: 0 20px;
+            background: transparent;
+            border: none;
+            color: var(--particles);
+            font-family: 'Orbitron', monospace;
+            font-size: 0.65rem;
+            letter-spacing: 2px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #prdToggle:hover {
+            background: rgba(204, 204, 255, 0.04);
+        }
+
+        /* ── PRD drawer ── */
+        #prdDrawer {
+            position: fixed;
+            bottom: 38px;
+            left: 0;
+            right: 0;
+            z-index: 50;
+            background: rgba(9, 7, 28, 0.98);
+            border-top: 1px solid var(--border);
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.35s ease;
+        }
+
+        #prdDrawer.open {
+            max-height: 55vh;
+            overflow-y: auto;
+        }
+
+        #prdContent {
+            padding: 20px 28px;
+            display: flex;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+
+        .prd-col {
+            flex: 1;
+            min-width: 220px;
+        }
+
+        .prd-col h3 {
+            font-family: 'Orbitron', monospace;
+            font-size: 0.65rem;
+            color: var(--stop);
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
+
+        .prd-col p,
+        .prd-col li {
+            font-size: 0.72rem;
+            color: var(--metal);
+            line-height: 1.8;
+        }
+
+        .prd-col ul {
+            padding-left: 14px;
+        }
+
+        .prd-col code {
+            color: var(--up);
+            background: rgba(0, 255, 136, 0.07);
+            padding: 1px 4px;
+        }
+
+        .vq {
+            color: var(--particles);
+            font-weight: bold;
+            margin-top: 8px;
+            display: block;
+        }
+
+        .va {
+            color: var(--metal);
+            display: block;
+        }
+
+        /* ── Sound indicator ── */
+        #soundBtn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--metal);
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.62rem;
+            padding: 3px 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        #soundBtn:hover {
+            border-color: var(--stop);
+            color: var(--stop);
+        }
+
+        #soundBtn.on {
+            color: var(--up);
+            border-color: var(--up);
+            text-shadow: 0 0 6px var(--up);
+        }
+
+        /* ── SVG active node pulse ── */
+        @keyframes svgNodePulse {
+            0% {
+                filter: drop-shadow(0 0 6px currentColor);
+            }
+
+            50% {
+                filter: drop-shadow(0 0 18px currentColor) drop-shadow(0 0 32px currentColor);
+            }
+
+            100% {
+                filter: drop-shadow(0 0 6px currentColor);
+            }
+        }
+
+        .svg-active-node {
+            animation: svgNodePulse 1.4s ease-in-out infinite;
+        }
+
+        /* ── Keyframes ── */
+        @keyframes pulse-car {
+
+            0%,
+            100% {
+                box-shadow: 0 0 10px var(--up), 0 0 24px rgba(0, 255, 136, 0.25);
+            }
+
+            50% {
+                box-shadow: 0 0 20px var(--up), 0 0 48px rgba(0, 255, 136, 0.45);
+            }
+        }
+
+        @keyframes float-p {
+            from {
+                opacity: 0.5;
+                letter-spacing: 2px;
+            }
+
+            to {
+                opacity: 1.0;
+                letter-spacing: 5px;
+            }
+        }
+
+        @keyframes blink-err {
+            from {
+                opacity: 1;
+            }
+
+            to {
+                opacity: 0.35;
+            }
+        }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar {
+            width: 3px;
+            height: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(204, 204, 255, 0.25);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="stars"></div>
+    <div id="scanlines"></div>
+
+
+
+    <div id="app">
+
+        <!-- HEADER -->
+        <header id="header">
+            <div class="hdr-title">░▒▓ ELEVATOR DFA SIMULATOR ▓▒░</div>
+            <div class="hdr-right">⚡ ZERO-G CONTAINMENT VESSEL v2.0 ⚡</div>
+            <button id="soundBtn" class="on" onclick="toggleSound()">🔊 SOUND ON</button>
+        </header>
+
+        <!-- LEFT COLUMN -->
+        <div class="col" id="colLeft">
+
+            <!-- State -->
+            <div class="panel">
+                <div class="panel-title">CURRENT POSITION</div>
+                <div class="state-box">
+                    <div class="state-lbl">ACTIVE STATE</div>
+                    <div id="stateValue">F1</div>
+                    <div id="stateSub">Entry Hatch — Docked</div>
+                </div>
+            </div>
+
+            <!-- Commands -->
+            <div class="panel">
+                <div class="panel-title">COMMAND INTERFACE</div>
+                <button class="cmd-btn btn-up" id="btnUp" onclick="handleInput('UP')">▲ UP — THRUST (+Z)</button>
+                <button class="cmd-btn btn-stop" id="btnStop" onclick="handleInput('STOP')">🔒 STOP — MAG-LOCK</button>
+                <button class="cmd-btn btn-down" id="btnDown" onclick="handleInput('DOWN')">▼ DOWN — THRUST
+                    (−Z)</button>
+                <button class="cmd-btn btn-reset" onclick="resetDFA()">↺ SYSTEM RESET</button>
+            </div>
+
+            <!-- Transition Table -->
+            <div class="panel grow">
+                <div class="panel-title">δ TRANSITION TABLE</div>
+                <div style="overflow-y:auto;flex:1;">
+                    <table class="ttable">
+                        <thead>
+                            <tr>
+                                <th>State</th>
+                                <th>UP</th>
+                                <th>DOWN</th>
+                                <th>STOP</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- CENTER COLUMN -->
+        <div class="col" id="colCenter">
+
+            <!-- Shaft -->
+            <div class="panel grow" id="shaftPanel" style="overflow:visible;">
+                <div class="panel-title">CONTAINMENT VESSEL — VISUAL</div>
+
+                <div id="shaftView">
+                    <div class="shaft" id="shaftEl">
+                        <div class="shaft-boundary">↑ AIRLOCK BOUNDARY</div>
+                        <!-- floors injected by JS -->
+                        <div class="shaft-boundary">↓ AIRLOCK BOUNDARY</div>
+                    </div>
+                </div>
+
+                <!-- Breach -->
+                <div id="breachOverlay">
+                    <div class="breach-box">
+                        <div class="breach-title">⚠ HULL BREACH — q_err ⚠</div>
+                        <div class="breach-sub">CONTAINMENT FAILURE — DECOMPRESSION IN PROGRESS</div>
+                        <div id="gaugeDisplay">[○○○○○] DECOMPRESSION</div>
+                        <div id="breachMsg"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Path Log -->
+            <div class="panel" style="height:130px; flex-shrink:0;">
+                <div class="panel-title">TRAJECTORY LOG</div>
+                <div id="pathLog"></div>
+                <div id="verdict" class="accept">✓ SEQUENCE ACCEPTED — STEADY ORBIT</div>
+            </div>
+
+        </div>
+
+        <!-- RIGHT COLUMN -->
+        <div class="col" id="colRight">
+
+            <!-- SVG Diagram -->
+            <div class="panel" style="flex:1;overflow:hidden;">
+                <div class="panel-title">STATE DIAGRAM</div>
+                <div id="svgWrap">
+                    <svg viewBox="0 0 200 520" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+                        <defs>
+                            <marker id="arr-up" markerWidth="7" markerHeight="6" refX="5" refY="3" orient="auto">
+                                <polygon points="0 0,7 3,0 6" fill="#00ff88" />
+                            </marker>
+                            <marker id="arr-dn" markerWidth="7" markerHeight="6" refX="5" refY="3" orient="auto">
+                                <polygon points="0 0,7 3,0 6" fill="#00ccff" />
+                            </marker>
+                            <marker id="arr-err" markerWidth="7" markerHeight="6" refX="5" refY="3" orient="auto">
+                                <polygon points="0 0,7 3,0 6" fill="#ff2255" />
+                            </marker>
+                            <marker id="arr-stop" markerWidth="5" markerHeight="5" refX="3" refY="2.5" orient="auto">
+                                <polygon points="0 0,5 2.5,0 5" fill="#ffaa00" />
+                            </marker>
+                        </defs>
+
+                        <!-- ── UP arrows (right side x=115), per transition ── -->
+                        <line id="svgArr_F1_UP" x1="115" y1="379" x2="115" y2="342" stroke="#00ff88" stroke-width="1.4"
+                            marker-end="url(#arr-up)" opacity="0.4" />
+                        <line id="svgArr_F2_UP" x1="115" y1="289" x2="115" y2="252" stroke="#00ff88" stroke-width="1.4"
+                            marker-end="url(#arr-up)" opacity="0.4" />
+                        <line id="svgArr_F3_UP" x1="115" y1="199" x2="115" y2="162" stroke="#00ff88" stroke-width="1.4"
+                            marker-end="url(#arr-up)" opacity="0.4" />
+                        <line id="svgArr_F4_UP" x1="115" y1="109" x2="115" y2="72" stroke="#00ff88" stroke-width="1.4"
+                            marker-end="url(#arr-up)" opacity="0.4" />
+
+                        <!-- ── DOWN arrows (left side x=85), per transition ── -->
+                        <line id="svgArr_F5_DOWN" x1="85" y1="72" x2="85" y2="109" stroke="#00ccff" stroke-width="1.4"
+                            marker-end="url(#arr-dn)" opacity="0.4" />
+                        <line id="svgArr_F4_DOWN" x1="85" y1="162" x2="85" y2="199" stroke="#00ccff" stroke-width="1.4"
+                            marker-end="url(#arr-dn)" opacity="0.4" />
+                        <line id="svgArr_F3_DOWN" x1="85" y1="252" x2="85" y2="289" stroke="#00ccff" stroke-width="1.4"
+                            marker-end="url(#arr-dn)" opacity="0.4" />
+                        <line id="svgArr_F2_DOWN" x1="85" y1="342" x2="85" y2="379" stroke="#00ccff" stroke-width="1.4"
+                            marker-end="url(#arr-dn)" opacity="0.4" />
+
+                        <!-- ── STOP self-loops (left nub) ── -->
+                        <path id="svgArr_F5_STOP" d="M74 35  Q50 35  50 45  Q50 55  74 55" stroke="#ffaa00"
+                            stroke-width="1" fill="none" marker-end="url(#arr-stop)" opacity="0.35" />
+                        <path id="svgArr_F4_STOP" d="M74 125 Q50 125 50 135 Q50 145 74 145" stroke="#ffaa00"
+                            stroke-width="1" fill="none" marker-end="url(#arr-stop)" opacity="0.35" />
+                        <path id="svgArr_F3_STOP" d="M74 215 Q50 215 50 225 Q50 235 74 235" stroke="#ffaa00"
+                            stroke-width="1" fill="none" marker-end="url(#arr-stop)" opacity="0.35" />
+                        <path id="svgArr_F2_STOP" d="M74 305 Q50 305 50 315 Q50 325 74 325" stroke="#ffaa00"
+                            stroke-width="1" fill="none" marker-end="url(#arr-stop)" opacity="0.35" />
+                        <path id="svgArr_F1_STOP" d="M74 395 Q50 395 50 405 Q50 415 74 415" stroke="#ffaa00"
+                            stroke-width="1" fill="none" marker-end="url(#arr-stop)" opacity="0.35" />
+                        <path id="svgArr_qerr_STOP" d="M65 478 Q44 478 44 487 Q44 496 65 496" stroke="#ff2255"
+                            stroke-width="1" fill="none" opacity="0.3" />
+
+                        <!-- ── Error: UP from F5 → q_err ── -->
+                        <path id="svgArr_F5_UP" d="M 100 19 Q 178 0 178 487 Q 178 502 135 488" stroke="#ff2255"
+                            stroke-width="1" fill="none" marker-end="url(#arr-err)" opacity="0.5" />
+                        <!-- ── Error: DOWN from F1 → q_err ── -->
+                        <path id="svgArr_F1_DOWN" d="M 100 431 Q 157 450 148 474" stroke="#ff2255" stroke-width="1"
+                            fill="none" marker-end="url(#arr-err)" opacity="0.5" />
+
+                        <!-- ── State nodes (drawn on top of arrows) ── -->
+                        <g id="svgF5">
+                            <circle id="svgFill_F5" cx="100" cy="45" r="26" fill="rgba(0,255,136,0)" stroke="#666"
+                                stroke-width="1.5" />
+                            <circle cx="100" cy="45" r="21" fill="none" stroke="#555" stroke-width="0.5" />
+                            <text x="100" y="50" text-anchor="middle" font-size="12" fill="#ccccff"
+                                font-family="monospace" font-weight="bold">F5</text>
+                        </g>
+                        <g id="svgF4">
+                            <circle id="svgFill_F4" cx="100" cy="135" r="26" fill="rgba(0,255,136,0)" stroke="#666"
+                                stroke-width="1.5" />
+                            <circle cx="100" cy="135" r="21" fill="none" stroke="#555" stroke-width="0.5" />
+                            <text x="100" y="140" text-anchor="middle" font-size="12" fill="#ccccff"
+                                font-family="monospace" font-weight="bold">F4</text>
+                        </g>
+                        <g id="svgF3">
+                            <circle id="svgFill_F3" cx="100" cy="225" r="26" fill="rgba(0,255,136,0)" stroke="#666"
+                                stroke-width="1.5" />
+                            <circle cx="100" cy="225" r="21" fill="none" stroke="#555" stroke-width="0.5" />
+                            <text x="100" y="230" text-anchor="middle" font-size="12" fill="#ccccff"
+                                font-family="monospace" font-weight="bold">F3</text>
+                        </g>
+                        <g id="svgF2">
+                            <circle id="svgFill_F2" cx="100" cy="315" r="26" fill="rgba(0,255,136,0)" stroke="#666"
+                                stroke-width="1.5" />
+                            <circle cx="100" cy="315" r="21" fill="none" stroke="#555" stroke-width="0.5" />
+                            <text x="100" y="320" text-anchor="middle" font-size="12" fill="#ccccff"
+                                font-family="monospace" font-weight="bold">F2</text>
+                        </g>
+                        <g id="svgF1">
+                            <circle id="svgFill_F1" cx="100" cy="405" r="26" fill="rgba(0,255,136,0)" stroke="#00ff88"
+                                stroke-width="2.5" />
+                            <circle cx="100" cy="405" r="21" fill="none" stroke="#00ff88" stroke-width="0.7" />
+                            <text x="100" y="401" text-anchor="middle" font-size="12" fill="#00ff88"
+                                font-family="monospace" font-weight="bold">F1</text>
+                            <text x="100" y="414" text-anchor="middle" font-size="7" fill="#00ff88"
+                                font-family="monospace">START</text>
+                        </g>
+                        <g id="svgQerr">
+                            <rect id="svgFill_qerr" x="65" y="474" width="70" height="26" fill="rgba(255,34,85,0)"
+                                stroke="#ff2255" stroke-width="1.5" />
+                            <text x="100" y="491" text-anchor="middle" font-size="11" fill="#ff2255"
+                                font-family="monospace">q_err</text>
+                        </g>
+
+                        <!-- ── Labels ── -->
+                        <text x="122" y="290" font-size="7" fill="#00ff88" font-family="monospace"
+                            opacity="0.65">UP</text>
+                        <text x="62" y="290" font-size="7" fill="#00ccff" font-family="monospace"
+                            opacity="0.65">DWN</text>
+                        <text x="30" y="230" font-size="6" fill="#ffaa00" font-family="monospace"
+                            opacity="0.6">STP</text>
+                        <text x="148" y="458" font-size="7" fill="#ff2255" font-family="monospace"
+                            opacity="0.8">ERR</text>
+                        <text x="150" y="190" font-size="7" fill="#ff2255" font-family="monospace"
+                            opacity="0.8">ERR</text>
+                    </svg>
+                </div>
+            </div>
+
+            <!-- Formal Spec -->
+            <div class="panel" style="flex-shrink:0;">
+                <div class="panel-title">FORMAL DEFINITION</div>
+                <div class="spec-line"><span class="spec-key">M</span> = (Q, Σ, δ, q₀, F)</div>
+                <div class="spec-line"><span class="spec-key">Q</span> = {F1..F5, q_err}</div>
+                <div class="spec-line"><span class="spec-key">Σ</span> = {UP, DOWN, STOP}</div>
+                <div class="spec-line"><span class="spec-key">q₀</span> = F1 &nbsp;|&nbsp; <span
+                        class="spec-key">F</span> = {F1..F5}</div>
+                <div style="font-size:0.58rem;color:rgba(170,170,170,0.5);margin-top:4px;">Total · Deterministic ·
+                    Minimal (6 states)</div>
+            </div>
+
+        </div>
+
+        <!-- FOOTER / PRD TOGGLE -->
+        <footer id="footer">
+            <button id="prdToggle" onclick="togglePRD()">
+                <span>📋 ZERO-G SPECIFICATIONS & VIVA NOTES</span>
+                <span id="prdArrow">▼</span>
+            </button>
+        </footer>
+
+    </div><!-- #app -->
+
+    <!-- PRD DRAWER -->
+    <div id="prdDrawer">
+        <div id="prdContent">
+            <div class="prd-col">
+                <h3>Zero-G Semantics</h3>
+                <ul>
+                    <li><strong>UP:</strong> Thruster burst +Z axis — positive drift</li>
+                    <li><strong>DOWN:</strong> Thruster burst −Z axis — negative drift</li>
+                    <li><strong>STOP:</strong> Magnetic clamps engage — hold position</li>
+                    <li>All F1–F5 are valid rest positions (no gravitational asymmetry)</li>
+                    <li>Boundary violations → hull breach → <code>q_err</code></li>
+                </ul>
+                <h3 style="margin-top:12px">Floor Labels</h3>
+                <p>F1 Entry · F2 Low Orbit · F3 Mid · F4 High Orbit · F5 Apex</p>
+            </div>
+            <div class="prd-col">
+                <h3>Minimisation (Myhill-Nerode)</h3>
+                <ul>
+                    <li><code>q_err</code> is only non-accepting — distinguished by ε</li>
+                    <li>F1 vs F2: DOWN → q_err vs F1 (different)</li>
+                    <li>F4 vs F5: UP → F5 vs q_err (different)</li>
+                    <li>All 15 pairs are distinguishable → DFA is minimal</li>
+                </ul>
+            </div>
+            <div class="prd-col">
+                <h3>Viva Q&A</h3>
+                <span class="vq">Q: How does zero-G change the DFA?</span>
+                <span class="va">A: It doesn't. The DFA is unchanged. Only the physical narrative changes — all floors
+                    are equally valid accepting states with no gravitational bias.</span>
+                <span class="vq">Q: Why is q_err a "breach"?</span>
+                <span class="va">A: Crossing the structural boundary implies hull decompression — catastrophic and
+                    unrecoverable, matching the absorbing trap state model.</span>
+                <span class="vq">Q: Is zero-G version more/less minimal?</span>
+                <span class="va">A: Equally minimal. Myhill-Nerode proof applies identically. All 15 state pairs remain
+                    pairwise distinguishable.</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ═══════════════════════════════════════════
+        //  WEB AUDIO API — SOUND ENGINE
+        // ═══════════════════════════════════════════
+        let audioCtx = null;
+        let soundEnabled = true;
+
+        function getCtx() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            return audioCtx;
+        }
+
+        function toggleSound() {
+            soundEnabled = !soundEnabled;
+            const btn = document.getElementById('soundBtn');
+            btn.textContent = soundEnabled ? '🔊 SOUND ON' : '🔇 SOUND OFF';
+            btn.className = soundEnabled ? 'on' : '';
+        }
+
+        // UP: ascending thruster sweep (low → high frequency)
+        function playUp() {
+            if (!soundEnabled) return;
+            const ctx = getCtx();
+            const t = ctx.currentTime;
+
+            // Base thruster hum sweep
+            const osc1 = ctx.createOscillator();
+            const gain1 = ctx.createGain();
+            osc1.type = 'sawtooth';
+            osc1.frequency.setValueAtTime(80, t);
+            osc1.frequency.linearRampToValueAtTime(320, t + 0.4);
+            gain1.gain.setValueAtTime(0.18, t);
+            gain1.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+            osc1.connect(gain1); gain1.connect(ctx.destination);
+            osc1.start(t); osc1.stop(t + 0.5);
+
+            // High-pitch accent ping
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(600, t + 0.1);
+            osc2.frequency.linearRampToValueAtTime(1100, t + 0.35);
+            gain2.gain.setValueAtTime(0.1, t + 0.1);
+            gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+            osc2.connect(gain2); gain2.connect(ctx.destination);
+            osc2.start(t + 0.1); osc2.stop(t + 0.5);
+        }
+
+        // DOWN: descending thruster sweep (high → low frequency)
+        function playDown() {
+            if (!soundEnabled) return;
+            const ctx = getCtx();
+            const t = ctx.currentTime;
+
+            const osc1 = ctx.createOscillator();
+            const gain1 = ctx.createGain();
+            osc1.type = 'sawtooth';
+            osc1.frequency.setValueAtTime(320, t);
+            osc1.frequency.linearRampToValueAtTime(80, t + 0.4);
+            gain1.gain.setValueAtTime(0.18, t);
+            gain1.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+            osc1.connect(gain1); gain1.connect(ctx.destination);
+            osc1.start(t); osc1.stop(t + 0.5);
+
+            const osc2 = ctx.createOscillator();
+            const gain2 = ctx.createGain();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(1100, t);
+            osc2.frequency.linearRampToValueAtTime(400, t + 0.35);
+            gain2.gain.setValueAtTime(0.1, t);
+            gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+            osc2.connect(gain2); gain2.connect(ctx.destination);
+            osc2.start(t); osc2.stop(t + 0.5);
+        }
+
+        // STOP: magnetic clamp "thunk" + metallic ring
+        function playStop() {
+            if (!soundEnabled) return;
+            const ctx = getCtx();
+            const t = ctx.currentTime;
+
+            // Low thud (noise burst)
+            const bufSize = ctx.sampleRate * 0.08;
+            const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+            const data = buf.getChannelData(0);
+            for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / bufSize);
+            const noise = ctx.createBufferSource();
+            noise.buffer = buf;
+            const nGain = ctx.createGain();
+            nGain.gain.setValueAtTime(0.4, t);
+            nGain.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+            noise.connect(nGain); nGain.connect(ctx.destination);
+            noise.start(t);
+
+            // Metallic ring
+            const osc = ctx.createOscillator();
+            const g = ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(880, t + 0.05);
+            osc.frequency.exponentialRampToValueAtTime(440, t + 0.3);
+            g.gain.setValueAtTime(0.15, t + 0.05);
+            g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+            osc.connect(g); g.connect(ctx.destination);
+            osc.start(t + 0.05); osc.stop(t + 0.5);
+        }
+
+        // ERROR: rising alarm siren + distortion buzz
+        function playError() {
+            if (!soundEnabled) return;
+            const ctx = getCtx();
+            const t = ctx.currentTime;
+
+            // Pulsed alarm (3 pulses)
+            for (let p = 0; p < 3; p++) {
+                const pt = t + p * 0.22;
+                const osc = ctx.createOscillator();
+                const g = ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(200 + p * 80, pt);
+                osc.frequency.linearRampToValueAtTime(500 + p * 80, pt + 0.18);
+                g.gain.setValueAtTime(0, pt);
+                g.gain.linearRampToValueAtTime(0.22, pt + 0.02);
+                g.gain.linearRampToValueAtTime(0.22, pt + 0.14);
+                g.gain.linearRampToValueAtTime(0, pt + 0.2);
+                osc.connect(g); g.connect(ctx.destination);
+                osc.start(pt); osc.stop(pt + 0.22);
+            }
+
+            // Low rumble
+            const osc2 = ctx.createOscillator();
+            const g2 = ctx.createGain();
+            osc2.type = 'sawtooth';
+            osc2.frequency.setValueAtTime(40, t + 0.0);
+            osc2.frequency.linearRampToValueAtTime(60, t + 0.66);
+            g2.gain.setValueAtTime(0.12, t);
+            g2.gain.linearRampToValueAtTime(0.25, t + 0.3);
+            g2.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+            osc2.connect(g2); g2.connect(ctx.destination);
+            osc2.start(t); osc2.stop(t + 0.8);
+        }
+
+        // ═══════════════════════════════════════════
+        //  DFA ENGINE
+        // ═══════════════════════════════════════════
+        const FLOORS = ['F5', 'F4', 'F3', 'F2', 'F1'];
+        const FLOOR_ORBIT = { F5: 'Apex', F4: 'High Orbit', F3: 'Mid Orbit', F2: 'Low Orbit', F1: 'Entry Hatch' };
+
+        const delta = {
+            F1: { UP: 'F2', DOWN: 'q_err', STOP: 'F1' },
+            F2: { UP: 'F3', DOWN: 'F1', STOP: 'F2' },
+            F3: { UP: 'F4', DOWN: 'F2', STOP: 'F3' },
+            F4: { UP: 'F5', DOWN: 'F3', STOP: 'F4' },
+            F5: { UP: 'q_err', DOWN: 'F4', STOP: 'F5' },
+            q_err: { UP: 'q_err', DOWN: 'q_err', STOP: 'q_err' },
+        };
+
+        let currentState = 'F1';
+        let prevState = null;
+        let path = [{ state: 'F1', input: null }];
+        let isBreached = false;
+        let lastInput = null;
+        let gaugeInt = null;
+
+        // ── Build shaft ──
+        function buildShaft() {
+            const shaft = document.getElementById('shaftEl');
+            const topB = shaft.querySelector('.shaft-boundary:first-child');
+            const botB = shaft.querySelector('.shaft-boundary:last-child');
+            shaft.innerHTML = '';
+            shaft.appendChild(topB);
+
+            FLOORS.forEach(f => {
+                const div = document.createElement('div');
+                div.className = 'floor' + (f === currentState ? ' active' : '');
+                div.id = 'fl_' + f;
+
+                let capStatus = '⧭ DOCKED';
+                if (lastInput === 'UP') capStatus = '⚡ THRUST';
+                if (lastInput === 'DOWN') capStatus = '✨ THRUST';
+                if (lastInput === 'STOP') capStatus = '🔒 LOCKED';
+
+                div.innerHTML = `
+      <div class="floor-lbl">${f}<span class="floor-orbit">${FLOOR_ORBIT[f]}</span></div>
+      <div class="floor-rings">◌◌◌</div>
+      <div class="capsule">
+        <div class="lift-car">
+          <div class="lift-roof"></div>
+          <div class="lift-windows">
+            <div class="lift-win"></div>
+            <div class="lift-win"></div>
+          </div>
+          <div class="lift-floornum">${f}</div>
+          <div class="lift-doors">
+            <div class="lift-door"></div>
+            <div class="lift-door"></div>
+          </div>
+          <div class="lift-base"></div>
+        </div>
+        <div class="cap-status">${capStatus}</div>
+      </div>`;
+                shaft.appendChild(div);
+            });
+
+            shaft.appendChild(botB);
+        }
+
+        // ── Build table ──
+        function buildTable() {
+            const tbody = document.getElementById('transTableBody');
+            tbody.innerHTML = '';
+            ['F1', 'F2', 'F3', 'F4', 'F5', 'q_err'].forEach(s => {
+                const tr = document.createElement('tr');
+                if (s === currentState) tr.classList.add('active-row');
+                const up = delta[s].UP;
+                const down = delta[s].DOWN;
+                const stop = delta[s].STOP;
+                tr.innerHTML = `
+      <td class="cur-st">${s}</td>
+      <td class="${up === 'q_err' ? 'err-cell' : ''}">${up}</td>
+      <td class="${down === 'q_err' ? 'err-cell' : ''}">${down}</td>
+      <td>${stop}</td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ── Update state display + live SVG ──
+        function updateState() {
+            const sv = document.getElementById('stateValue');
+            const sub = document.getElementById('stateSub');
+            if (currentState === 'q_err') {
+                sv.textContent = 'q_err';
+                sv.className = 'err';
+                sub.textContent = 'BREACH — Non-Accepting Trap';
+            } else {
+                sv.textContent = currentState;
+                sv.className = '';
+                sub.textContent = FLOOR_ORBIT[currentState] + ' — Docked';
+            }
+
+            // ── Highlight active SVG state node ──
+            const stateKeys = ['F1', 'F2', 'F3', 'F4', 'F5', 'q_err'];
+            stateKeys.forEach(s => {
+                const gEl = document.getElementById('svg' + (s === 'q_err' ? 'Qerr' : s));
+                const fillEl = document.getElementById('svgFill_' + (s === 'q_err' ? 'qerr' : s));
+                if (!gEl) return;
+                const shape = gEl.querySelector('circle,rect');
+                if (s === currentState) {
+                    const c = s === 'q_err' ? '#ff2255' : '#00ff88';
+                    shape.setAttribute('stroke', c);
+                    shape.setAttribute('stroke-width', '3');
+                    gEl.classList.add('svg-active-node');
+                    gEl.style.color = c;
+                    if (fillEl) fillEl.setAttribute('fill', s === 'q_err' ? 'rgba(255,34,85,0.12)' : 'rgba(0,255,136,0.1)');
+                } else {
+                    const defaultStroke = s === 'q_err' ? '#ff2255' : (s === 'F1' ? '#00ff88' : '#666');
+                    const defaultW = s === 'q_err' ? '1.5' : (s === 'F1' ? '2.5' : '1.5');
+                    shape.setAttribute('stroke', defaultStroke);
+                    shape.setAttribute('stroke-width', defaultW);
+                    gEl.classList.remove('svg-active-node');
+                    gEl.style.color = '';
+                    gEl.style.filter = 'none';
+                    if (fillEl) fillEl.setAttribute('fill', 'rgba(0,0,0,0)');
+                }
+            });
+
+            // ── Highlight the arrow just traversed ──
+            // First, reset all arrows to dim
+            const allArrowIds = [
+                'svgArr_F1_UP', 'svgArr_F2_UP', 'svgArr_F3_UP', 'svgArr_F4_UP',
+                'svgArr_F5_DOWN', 'svgArr_F4_DOWN', 'svgArr_F3_DOWN', 'svgArr_F2_DOWN',
+                'svgArr_F5_UP', 'svgArr_F1_DOWN',
+                'svgArr_F1_STOP', 'svgArr_F2_STOP', 'svgArr_F3_STOP', 'svgArr_F4_STOP', 'svgArr_F5_STOP', 'svgArr_qerr_STOP'
+            ];
+            allArrowIds.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) { el.setAttribute('opacity', '0.4'); el.setAttribute('stroke-width', '1.4'); }
+            });
+
+            // Then brighten the one that was just used
+            if (prevState && lastInput) {
+                const arrId = 'svgArr_' + prevState + '_' + lastInput;
+                const arrEl = document.getElementById(arrId);
+                if (arrEl) {
+                    arrEl.setAttribute('opacity', '1');
+                    arrEl.setAttribute('stroke-width', '2.6');
+                    // flash animation: fade back
+                    arrEl.style.transition = 'opacity 0.8s ease';
+                    setTimeout(() => {
+                        if (arrEl) { arrEl.setAttribute('opacity', '0.82'); arrEl.setAttribute('stroke-width', '2'); }
+                    }, 600);
+                }
+            }
+        }
+
+        // ── Update path log ──
+        function updatePath() {
+            const log = document.getElementById('pathLog');
+            log.innerHTML = '';
+            path.forEach(step => {
+                const span = document.createElement('span');
+                span.className = 'path-step';
+                let html = '';
+                if (step.input) {
+                    const c = step.input === 'UP' ? 'var(--up)' : step.input === 'DOWN' ? 'var(--down)' : 'var(--stop)';
+                    html += `<span class="path-arrow">—</span><span class="path-inp" style="color:${c}">${step.input}</span><span class="path-arrow">→</span>`;
+                }
+                html += `<span class="${step.state === 'q_err' ? 'path-err' : 'path-ok'}">${step.state}</span>`;
+                span.innerHTML = html;
+                log.appendChild(span);
+            });
+            log.scrollLeft = log.scrollWidth;
+
+            const v = document.getElementById('verdict');
+            if (isBreached) {
+                v.textContent = '✗ SEQUENCE REJECTED — HULL BREACH DETECTED';
+                v.className = 'reject';
+            } else {
+                v.textContent = '✓ SEQUENCE ACCEPTED — STEADY ORBIT';
+                v.className = 'accept';
+            }
+        }
+
+        // ── Breach ──
+        function triggerBreach(msg) {
+            document.getElementById('shaftView').style.display = 'none';
+            document.getElementById('breachOverlay').classList.add('active');
+            document.getElementById('breachMsg').textContent = msg;
+            ['btnUp', 'btnDown', 'btnStop'].forEach(id => document.getElementById(id).disabled = true);
+
+            let gl = 5;
+            const g = document.getElementById('gaugeDisplay');
+            gaugeInt = setInterval(() => {
+                gl = Math.max(0, gl - 1);
+                g.textContent = '[' + '○'.repeat(gl) + ' '.repeat(5 - gl) + '] DECOMPRESSION';
+                if (gl === 0) clearInterval(gaugeInt);
+            }, 900);
+        }
+
+        // ── Handle Input ──
+        function handleInput(input) {
+            if (isBreached) return;
+            prevState = currentState;
+            lastInput = input;
+
+            const nextState = delta[currentState][input];
+            const willBreach = nextState === 'q_err';
+
+            // Play sound BEFORE state transition
+            if (willBreach) {
+                playError();
+            } else if (input === 'UP') { playUp(); }
+            else if (input === 'DOWN') { playDown(); }
+            else if (input === 'STOP') { playStop(); }
+
+            let breachMsg = '';
+            if (willBreach) {
+                if (currentState === 'F5' && input === 'UP')
+                    breachMsg = 'Cannot exit containment vessel — Hull breach imminent → q_err';
+                else if (currentState === 'F1' && input === 'DOWN')
+                    breachMsg = 'Cannot descend past entry lock — Structural failure → q_err';
+            }
+
+            currentState = nextState;
+            path.push({ state: nextState, input });
+            if (willBreach) isBreached = true;
+
+            buildShaft();
+            buildTable();
+            updateState();
+            updatePath();
+
+            if (willBreach) triggerBreach(breachMsg);
+        }
+
+        // ── Reset ──
+        function resetDFA() {
+            currentState = 'F1';
+            prevState = null;
+            path = [{ state: 'F1', input: null }];
+            isBreached = false;
+            lastInput = null;
+            clearInterval(gaugeInt);
+
+            document.getElementById('shaftView').style.display = 'flex';
+            document.getElementById('breachOverlay').classList.remove('active');
+            document.getElementById('gaugeDisplay').textContent = '[○○○○○] DECOMPRESSION';
+            document.getElementById('breachMsg').textContent = '';
+            ['btnUp', 'btnDown', 'btnStop'].forEach(id => document.getElementById(id).disabled = false);
+
+            buildShaft(); buildTable(); updateState(); updatePath();
+        }
+
+        // ── PRD ──
+        function togglePRD() {
+            const d = document.getElementById('prdDrawer');
+            const arr = document.getElementById('prdArrow');
+            const isOpen = d.classList.toggle('open');
+            arr.textContent = isOpen ? '▲' : '▼';
+        }
+
+        // ── Keyboard shortcuts ──
+        document.addEventListener('keydown', e => {
+            if (e.key === 'ArrowUp' || e.key === 'u') handleInput('UP');
+            if (e.key === 'ArrowDown' || e.key === 'd') handleInput('DOWN');
+            if (e.key === 's' || e.key === ' ') { e.preventDefault(); handleInput('STOP'); }
+            if (e.key === 'r' || e.key === 'R') resetDFA();
+        });
+
+        // ── Init ──
+        buildShaft(); buildTable(); updateState(); updatePath();
+    </script>
+</body>
+
+</html>
