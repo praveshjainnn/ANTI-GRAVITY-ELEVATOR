@@ -1,4 +1,4 @@
-# ANTI-GRAVITY-ELEVATOR
+
 # 🚀 Anti-Gravity Elevator DFA Simulator
 
 A **Theory of Computation project** that models an **elevator system using a Deterministic Finite Automaton (DFA)**.  
